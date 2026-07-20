@@ -792,6 +792,13 @@ start_cluster 3 3 {tags {external:skip cluster} overrides {cluster-node-timeout 
             # Cancel the task
             R 0 CLUSTER MIGRATION CANCEL ID $task_id
             R 1 CLUSTER MIGRATION CANCEL ID $task_id
+            # Wait for the cancelled task's slot-state cleanup to complete before
+            # starting the next iteration's IMPORT. CANCEL only requests cancellation;
+            # actual rollback/slot ownership revert happens asynchronously in the
+            # cluster cron. Without this wait, the previous iteration's late-completing
+            # handoff can race with the next IMPORT, producing "already the owner of
+            # the slot range" instead of the expected fail-point error. (fixes #15340)
+            wait_for_asm_done
 
             R 1 config set rdb-key-save-delay 0
             R 0 config set key-load-delay 0
